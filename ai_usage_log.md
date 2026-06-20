@@ -1,0 +1,6 @@
+- Used AI to generate initial cleaning logic.
+- Verified duplicate removal manually.
+- Used AI to build enrichment pipeline.
+- Identified performance issue with row-by-row requests.
+- Refactored to batch processing.
+- Verified enrichment results against sample records.
