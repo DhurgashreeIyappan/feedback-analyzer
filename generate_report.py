@@ -147,11 +147,57 @@ def generate_business_recommendation(top_category: str, negative_percentage: flo
         return f"Continue monitoring {top_category} feedback and implement targeted improvements based on specific customer issues."
 
 
+def generate_data_quality_notes(df: pd.DataFrame) -> str:
+    """
+    Generate data quality notes for the report.
+    
+    Args:
+        df: DataFrame containing enriched feedback data.
+        
+    Returns:
+        String containing data quality notes.
+    """
+    logger.info("Generating data quality notes")
+    
+    notes = []
+    
+    # Check for missing timestamps
+    if 'timestamp' in df.columns:
+        missing_timestamps = df['timestamp'].isna().sum()
+        if missing_timestamps > 0:
+            notes.append(f"- **Missing Timestamps:** {missing_timestamps} records have missing or invalid timestamps (kept as NaT)")
+        else:
+            notes.append("- **Missing Timestamps:** All timestamps are valid")
+    
+    # Check for missing sentiment/category/summary (enrichment failures)
+    missing_enrichment = 0
+    if 'sentiment' in df.columns:
+        missing_enrichment += df['sentiment'].isna().sum()
+    if 'category' in df.columns:
+        missing_enrichment += df['category'].isna().sum()
+    if 'summary' in df.columns:
+        missing_enrichment += df['summary'].isna().sum()
+    
+    if missing_enrichment > 0:
+        notes.append(f"- **Enrichment Failures:** {missing_enrichment // 3} records failed AI enrichment (missing sentiment/category/summary)")
+    
+    # Data quality assumptions
+    notes.append("- **Assumptions Made:")
+    notes.append("  - Duplicate feedback was identified using normalized text (lowercase, trimmed)")
+    notes.append("  - Test data patterns were removed based on common test strings")
+    notes.append("  - Sentiment analysis ignores rating field, uses only feedback text")
+    notes.append("  - Category classification uses predefined categories with 'Other' as fallback")
+    notes.append("  - Timestamps with invalid formats were converted to NaT rather than removed")
+    
+    return "\n".join(notes)
+
+
 def generate_markdown_report(
     top_categories: pd.DataFrame,
     sentiment_breakdown: pd.DataFrame,
     representative_examples: Dict[str, List[str]],
-    total_feedback: int
+    total_feedback: int,
+    df: pd.DataFrame
 ) -> str:
     """
     Generate a markdown report from the analysis results.
@@ -161,6 +207,7 @@ def generate_markdown_report(
         sentiment_breakdown: DataFrame with sentiment statistics.
         representative_examples: Dictionary mapping categories to example lists.
         total_feedback: Total number of feedback analyzed.
+        df: DataFrame containing the full enriched data.
         
     Returns:
         Markdown formatted report string.
@@ -177,6 +224,9 @@ def generate_markdown_report(
     
     # Generate business recommendation
     recommendation = generate_business_recommendation(most_common_category, negative_percentage)
+    
+    # Generate data quality notes
+    data_quality_notes = generate_data_quality_notes(df)
     
     report_lines = [
         "# Customer Feedback Analysis Report",
@@ -227,6 +277,12 @@ def generate_markdown_report(
             report_lines.append("No examples available.")
         
         report_lines.append("")
+    
+    # Add data quality notes
+    report_lines.append("## Data Quality Notes")
+    report_lines.append("")
+    report_lines.append(data_quality_notes)
+    report_lines.append("")
     
     report = "\n".join(report_lines)
     logger.info("Markdown report generated")
@@ -289,7 +345,7 @@ def main() -> None:
             representative_examples[category] = examples
         
         # Generate markdown report
-        report = generate_markdown_report(top_categories, sentiment_breakdown, representative_examples, len(df))
+        report = generate_markdown_report(top_categories, sentiment_breakdown, representative_examples, len(df), df)
         
         # Save report
         save_report(report, output_file)
